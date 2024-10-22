@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="plugin-lib"
+description="Library for implementing Copilot plugins as standalone services with a REST API interface"
+version="0.1"
+dependencies = [
+    "fastapi",
+    "pydantic",
+    "uvicorn",
+    "croniter",
+    "hydra-core",
+    "pandas",
+    "pyarrow",
+    "azure-storage-blob",
+    "azure-identity",
+    "azure-keyvault",
+]
+
+[project.scripts]
+plugin_data_scripts = "plugin_lib.scripts.run_data_scripts:main"
+plugin_lib = "plugin_lib.cli.main:main"
+
+[tool.setuptools]
+script-files = ["start_plugin.sh"]
