@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script>
+        L_NO_TOUCH = false;
+        L_DISABLE_3D = false;
+    </script>
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <style>
+        #map_d4d1b6b6db378a7cc7908f76edb8997c {
+            position: relative;
+            width: 100.0%;
+            height: 100.0%;
+            left: 0.0%;
+            top: 0.0%;
+        }
+        .leaflet-container { font-size: 1rem; }
+        .large-text-tooltip .leaflet-tooltip-content {
+            font-size: 1.5rem; /* Adjust the size as needed */
+        }
+    </style>
+</head>
+<body>
+    <div class="folium-map" id="map_d4d1b6b6db378a7cc7908f76edb8997c"></div>
+</body>
+<script>
+    var map_d4d1b6b6db378a7cc7908f76edb8997c = L.map("map_d4d1b6b6db378a7cc7908f76edb8997c", {
+        center: [37.96173, -121.522],
+        crs: L.CRS.EPSG3857,
+        zoom: 12,
+        zoomControl: true,
+        preferCanvas: false,
+    });
+
+    var tile_layer_84d9d1d3777ebe2556875da28863e2c8 = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {"attribution": "Esri World Imagery", "detectRetina": false, "maxNativeZoom": 18, "maxZoom": 18, "minZoom": 0, "noWrap": false, "opacity": 1, "subdomains": "abc", "tms": false}
+    );
+
+    tile_layer_84d9d1d3777ebe2556875da28863e2c8.addTo(map_d4d1b6b6db378a7cc7908f76edb8997c);
+
+    // Define the coordinates for the polygon
+    var latlngs = [
+        [37.96298, -121.52832],
+        [37.96355, -121.51716],
+        [37.95997, -121.51720],
+        [37.95932, -121.52754],
+    ];
+
+    // Create and add the polygon to the map
+    var polygon = L.polygon(latlngs, {
+        color: 'blue',
+        fillColor: '#007bff',
+        fillOpacity: 0.5
+    }).addTo(map_d4d1b6b6db378a7cc7908f76edb8997c);
+
+    // Zoom the map to the polygon
+    map_d4d1b6b6db378a7cc7908f76edb8997c.fitBounds(polygon.getBounds());
+
+    // Add draggable markers to the map
+    var markers = [
+        {coords: [37.96298, -121.52832], text: "(37.96298, -121.52832)"},
+        {coords: [37.96355, -121.51716], text: "(37.96355, -121.51716)"},
+        {coords: [37.95997, -121.51720], text: "(37.95997, -121.51720)"},
+        {coords: [37.95932, -121.52754], text: "(37.95932, -121.52754)"},
+    ];
+
+    markers.forEach(function(marker) {
+        var m = L.marker(marker.coords, {draggable: true}).addTo(map_d4d1b6b6db378a7cc7908f76edb8997c);
+        m.bindPopup(marker.text);
+
+        // Add a circle marker to display the coordinates next to the marker
+        var circleMarker = L.circleMarker(marker.coords, {
+            radius: 8,
+            fillColor: "#ff7800",
+            color: "#000",
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map_d4d1b6b6db378a7cc7908f76edb8997c);
+
+        circleMarker.bindTooltip(marker.text, {permanent: true, direction: 'right', offset: L.point(10, 0), className: 'large-text-tooltip'});
+
+        m.on('dragend', function(e) {
+            var newCoords = e.target.getLatLng();
+            m.setPopupContent("(" + newCoords.lat.toFixed(5) + ", " + newCoords.lng.toFixed(5) + ")");
+            circleMarker.setLatLng(newCoords);
+            circleMarker.setTooltipContent("(" + newCoords.lat.toFixed(5) + ", " + newCoords.lng.toFixed(5) + ")");
+            
+            // Update the polygon coordinates
+            var newLatLngs = polygon.getLatLngs()[0].map(function(latlng) {
+                if (latlng.equals(marker.coords)) {
+                    return newCoords;
+                }
+                return latlng;
+            });
+
+            polygon.setLatLngs(newLatLngs);
+        });
+    });
+</script>
+</html>

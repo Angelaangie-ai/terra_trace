@@ -1,0 +1,22 @@
+name: plugin2
+version: "0.0.1"
+storage:
+  # Support local or blob storage
+  # Local version:  
+  _target_: plugin_lib.storage.LocalStorage
+  root_dir: /mnt/data/plugin2
+  # Blob version:
+  # _target_: plugin_lib.storage.BlobStorage
+  # account_url: https://BLOB_STORAGE_ACCOUNT_NAME.blob.core.windows.net
+  # container_name: plugin-plugin3
+modules:
+  - modules/plugin2.py
+# Add data scripts here (path relative to plugin root directory)
+# Example:
+# data_scripts:
+#  - name: script_name
+#    path: data_scripts/script_name.py
+# Add header parameters here - these are *not* filled in by the LLM
+# Example:
+# tool_header:
+#   - user_id
