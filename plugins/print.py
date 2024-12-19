@@ -9,12 +9,11 @@ import contextily as ctx
 # Set environment variable to restore or create SHX file
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
 
-# Load the CSV data
+# Load the Dataset
 csv_paths = [
-    '/workspace/devkit23/plugins/plugin2/NDVI_California_Dataset/NDVI_California_Dataset/Third Part/Transformed_NDVI_Third_Part_2020_April.csv',
-    '/workspace/devkit23/plugins/plugin2/NDVI_California_Dataset/NDVI_California_Dataset/Fourth Part/Transformed_NDVI_Fourth_Part_2020_April.csv',
-    '/workspace/devkit23/plugins/plugin2/NDVI_California_Dataset/NDVI_California_Dataset/Fifth_Part/Transformed_NDVI_Fifth_Part_2020_April.csv',
-    # Add more CSV paths as needed
+    '/workspace/plugins/dataset/NDVI_California_Dataset/Third Part/Transformed_NDVI_Third_Part_2020_April.csv',
+    '/workspace/plugins/dataset/NDVI_California_Dataset/Fourth Part/Transformed_NDVI_Fourth_Part_2020_April.csv',
+    '/workspace/plugins/dataset/NDVI_California_Dataset/Fifth_Part/Transformed_NDVI_Fifth_Part_2020_April.csv',
 ]
 for csv_path in csv_paths:
     try:
@@ -22,8 +21,8 @@ for csv_path in csv_paths:
         print(f"CSV file loaded successfully: {csv_path}")
     except FileNotFoundError:
         df = pd.DataFrame({
-            'lat': np.random.uniform(32, 42, 1000),  # Generating sample data for latitude
-            'lon': np.random.uniform(-124, -114, 1000)  # Generating sample data for longitude
+            'lat': np.random.uniform(32, 42, 1000),  
+            'lon': np.random.uniform(-124, -114, 1000)  
         })
         print("CSV file not found. Using sample data.")
 
