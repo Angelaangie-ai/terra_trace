@@ -176,6 +176,169 @@ CATEGORIZATION_CODE_TO_LAND_COVER: Dict[int, str] = {
     254: "Dbl Crop Barley/Soybeans"
 }
 
+def find_closest_coordinate(target_coords, df):
+    """
+    Find the closest coordinate in df to target_coords using Euclidean distance.
+    df must have 'lat' and 'lon' columns.
+    """
+    distances = np.sqrt((df['lat'] - target_coords[0])**2 + (df['lon'] - target_coords[1])**2)
+    closest_idx = distances.idxmin()
+    closest_point = df.loc[closest_idx]
+    logging.info(f"Closest point found: {closest_point['lat']}, {closest_point['lon']}")
+    return closest_point
+
+def get_closest_ndvi_data(coord, df):
+    """
+    Given a coordinate (lat, lon) and a DataFrame df with NDVI data,
+    find the closest point, melt the DataFrame, calculate yearly and percentage changes,
+    and return a DataFrame with 'date' and 'NDVI' columns plus additional info.
+    """
+    lat, lon = coord
+    closest_point = find_closest_coordinate((lat, lon), df)
+    closest_lat, closest_lon = closest_point['lat'], closest_point['lon']
+
+    df_filtered = df[(df['lat'] == closest_lat) & (df['lon'] == closest_lon)]
+    if df_filtered.empty:
+        logging.error(f"No data found for coordinates: {coord}")
+        return pd.DataFrame()
+
+    df_melted = df_filtered.melt(id_vars=['lat', 'lon'], var_name='date', value_name='NDVI')
+    df_melted.dropna(subset=['NDVI'], inplace=True)
+    df_melted['date'] = pd.to_datetime(df_melted['date'])
+    df_melted.sort_values(by='date', inplace=True)
+
+    df_melted['year'] = df_melted['date'].dt.year
+    df_melted['month'] = df_melted['date'].dt.month
+    df_melted['yearly_change'] = df_melted.groupby('year')['NDVI'].diff().fillna(0)
+    df_melted['percentage_change'] = df_melted.groupby('year')['NDVI'].pct_change(fill_method=None).fillna(0)*100
+
+    return df_melted
+
+def plot_ndvi_timeseries(ndvi_df, save_path):
+    """
+    Plot NDVI timeseries data with a polynomial fit.
+    """
+    try:
+        plt.figure(figsize=(10, 5))
+        ndvi_df['Date'] = pd.to_datetime(ndvi_df['Date'])
+
+        ndvi_df.set_index('Date', inplace=True)
+        ndvi_resampled = ndvi_df.resample('M').mean()
+        ndvi_df.reset_index(inplace=True)
+        ndvi_resampled.reset_index(inplace=True)
+
+        date_range = (ndvi_resampled['Date'] - ndvi_resampled['Date'].min()) / np.timedelta64(1, 'D')
+        x = date_range.values
+        y = ndvi_resampled['NDVI']
+
+        # Interpolate for smooth curve
+        x_new = np.linspace(x.min(), x.max(), 300)
+        f = interp1d(x, y, kind='cubic')
+        y_new = f(x_new)
+
+        # Fit polynomial
+        polynomial_coefficients = np.polyfit(x_new, y_new, 3)
+        y_fit = np.polyval(polynomial_coefficients, x_new)
+
+        plt.plot(ndvi_resampled['Date'], y, 'o', label='Resampled Data')
+        plt.plot(ndvi_resampled['Date'].min() + np.timedelta64(1, 'D') * x_new, y_fit, '-', label='Polynomial Fit')
+        plt.xlabel('Date')
+        plt.ylabel('NDVI Value')
+        plt.title('NDVI Timeseries Data with Polynomial Fit')
+        plt.legend()
+        plt.grid(True)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.close()
+        logging.info(f"Plot saved at {save_path}")
+    except Exception as e:
+        logging.error(f"Error in plot_ndvi_timeseries: {e}")
+        raise
+
+def get_first_curve_data():
+    """
+    Return sample NDVI DataFrame for demonstration (random data).
+    """
+    dates = pd.date_range(start="2020-01-01", end="2020-12-31", freq='M')
+    ndvi_values = np.random.rand(len(dates))
+    data = {'Date': dates, 'NDVI': ndvi_values}
+    return pd.DataFrame(data)
+
+def generate_ndvi_analysis(ndvi_df):
+    """
+    Generate an NDVI analysis summary in HTML.
+    """
+    try:
+        if 'NDVI' not in ndvi_df.columns:
+            raise KeyError("'NDVI' column not found in the DataFrame")
+
+        min_ndvi = ndvi_df['NDVI'].min()
+        max_ndvi = ndvi_df['NDVI'].max()
+        avg_ndvi = ndvi_df['NDVI'].mean()
+        trend = np.polyfit(np.arange(len(ndvi_df['NDVI'])), ndvi_df['NDVI'], 1)[0]
+        trend_description = "increasing" if trend > 0 else "decreasing"
+
+        analysis = f"""
+        <div class="ndvi-analysis">
+            <h2 class="ndvi-title">NDVI Analysis Summary</h2>
+            <div class="ndvi-section">
+                <h3 class="ndvi-subtitle">📊 Key Metrics</h3>
+                <ul class="ndvi-list">
+                    <li>Minimum NDVI: <strong>{min_ndvi:.4f}</strong></li>
+                    <li>Maximum NDVI: <strong>{max_ndvi:.4f}</strong></li>
+                    <li>Average NDVI: <strong>{avg_ndvi:.4f}</strong></li>
+                    <li>Trend: <strong>{trend_description}</strong></li>
+                </ul>
+            </div>
+            <div class="ndvi-section">
+                <h3 class="ndvi-subtitle">🌿 Vegetation Density</h3>
+                <p>High NDVI ({max_ndvi:.4f}) indicates dense vegetation, while low NDVI ({min_ndvi:.4f}) suggests sparse vegetation.</p>
+            </div>
+            <div class="ndvi-section">
+                <h3 class="ndvi-subtitle">📈 Temporal Analysis</h3>
+                <p>The {trend_description} trend may indicate {trend_description} growth or seasonal changes.</p>
+            </div>
+            <p class="ndvi-note"><em>Note: Consider additional data and expert input for a complete analysis.</em></p>
+        </div>
+        """
+        return analysis
+    except Exception as e:
+        logging.error(f"Error in generate_ndvi_analysis: {e}")
+        return f"<div class='ndvi-analysis'><p>Error generating NDVI analysis: {e}</p></div>"
+
+def get_satellite_image(coordinates, start_date, end_date):
+    """
+    Fetch a satellite image (S2) from Earth Engine for given coordinates and date range.
+    Returns a thumbnail URL.
+    """
+    point = ee.Geometry.Point(coordinates)
+    collection = (ee.ImageCollection('COPERNICUS/S2_SR')
+                  .filterBounds(point)
+                  .filterDate(start_date, end_date)
+                  .sort('CLOUDY_PIXEL_PERCENTAGE')
+                  .first())
+
+    vis_params = {
+        'min': 0,
+        'max': 3000,
+        'bands': ['B4', 'B3', 'B2'],
+        'gamma': 1.4
+    }
+    scale = 10
+    region = point.buffer(1000).bounds().getInfo()['coordinates']
+    url = collection.getThumbURL({
+        'min': vis_params['min'],
+        'max': vis_params['max'],
+        'bands': vis_params['bands'],
+        'gamma': vis_params['gamma'],
+        'scale': scale,
+        'region': region
+    })
+    return url
+
+
+
 
 
 
