@@ -1,28 +1,38 @@
 import sys
-import ee
 import os
-from markupsafe import Markup
-
-from scipy.interpolate import interp1d
-from scipy.ndimage import gaussian_filter1d
-from PIL import Image
-import openai
 import logging
-from scipy.optimize import curve_fit
-from flask import Flask, request, jsonify, render_template, send_from_directory, url_for
-import pandas as pd
+import json
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+from flask import Flask, request, jsonify, render_template, send_from_directory, url_for
 from datetime import datetime, timezone
-import rasterio
-from rasterio.warp import transform as transform_coordinates
-from rasterio.windows import Window
 from shapely.geometry import Polygon, box, Point
 from scipy.spatial import distance
-from vibe_core.data import CategoricalRaster
-from typing import List, Dict
+from scipy.interpolate import interp1d
+from scipy.ndimage import gaussian_filter1d
 from geopy.distance import geodesic
-import json
+from PIL import Image
+from markupsafe import Markup
+import openai
+import ee
+
+logging.basicConfig(level=logging.INFO)
+
+# Configuration Constants
+BASE_FOLDER_PATH = 'NDVI_DATASET'
+CSV_FILEPATH = os.path.join(BASE_FOLDER_PATH, 'FILE_NAME')
+MASTER_DF = pd.read_csv(CSV_FILEPATH)  
+WILDFIRE_DATA = pd.read_csv('WILD_FIRE_DATA')
+
+# OpenAI API Settings
+openai.api_key = 'KEY'
+openai.api_base = 'BASE'
+openai.api_type = 'TYPE'
+openai.api_version = 'VERSION'
+
+# Initialize Earth Engine
+ee.Initialize(project='soil-424920')
 
 ee.Initialize(project='soil-424920')
 # Add the modules directory to the Python path
