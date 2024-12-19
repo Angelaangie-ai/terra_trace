@@ -3,11 +3,10 @@
 import openai
 from datetime import date
 
-# Define your deployment name, endpoint, and other settings
-deployment_name = 'gpt-35-turbo'  # Adjust if you have a different model name
-api_key = 'ffb3f4e4ea574d51b1eb34ff0ecedf3d'
-api_version = '2023-07-01-preview'  # Adjust if you have a different API version
-base_url = 'https://trapi.research.microsoft.com/gcr/shared'
+deployment_name = 'NAME'  
+api_key = 'KEY'
+api_version = 'VERSION'  
+base_url = 'URL'
 
 # Get the current date
 month_day = date.today().strftime("%B %d")
