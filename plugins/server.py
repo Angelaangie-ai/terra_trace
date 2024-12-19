@@ -368,7 +368,58 @@ def chat_ndvi():
         logging.error(f"Error in chat_ndvi: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/generate_image', methods=['POST'])
+def generate_image():
+    data = request.get_json()
+    coordinates = data.get('coordinates')
+    coords = list(map(float, coordinates.split(',')))
+    start_date = '2020-04-01'
+    end_date = '2020-04-30'
+    image_url = get_satellite_image(coords, start_date, end_date)
+    return jsonify({'image_url': image_url})
 
+def explain_ndvi(value):
+    if pd.isna(value):
+        return "No data"
+    elif value < -0.1:
+        return "indicating very sparse or non-vegetative area"
+    elif -0.1 <= value < 0:
+        return "indicating sparse vegetation"
+    elif 0 <= value < 0.2:
+        return "indicating some vegetation"
+    else:
+        return "indicating healthy vegetation"
+
+def generate_explanation(df):
+    explanation = ""
+    for index, row in df.iterrows():
+        month = row["month"]
+        explanation += f"\n### {month}:\n"
+        for year_col in df.columns[1:]:
+            value = row[year_col]
+            condition = explain_ndvi(value)
+            explanation += f"  - {year_col}: {value} ({condition})\n"
+    return explanation
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.get_json()
+    question = data.get('question')
+    deployment_id = 'gpt-35-turbo'
+
+    try:
+        response = openai.ChatCompletion.create(
+            engine=deployment_id,
+            messages=[
+                {"role": "system", "content": "You are an expert in NDVI curve analysis."},
+                {"role": "user", "content": question}
+            ],
+            max_tokens=2000
+        )
+        answer = response['choices'][0]['message']['content']
+        return jsonify({'answer': answer})
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 
 
