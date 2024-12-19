@@ -337,6 +337,37 @@ def get_satellite_image(coordinates, start_date, end_date):
     })
     return url
 
+@app.route('/chat_ndvi', methods=['POST'])
+def chat_ndvi():
+    """
+    Endpoint to handle NDVI chat requests.
+    If 'analyze the first curve' requested:
+      - Generate sample NDVI data, plot, analyze
+    """
+    data = request.get_json()
+    message = data.get('message', '').lower()
+
+    try:
+        if 'analyze the first curve' in message:
+            ndvi_df = get_first_curve_data()
+
+            plot_filename = 'ndvi_first_curve.png'
+            save_path = os.path.join('static', plot_filename)
+            plot_ndvi_timeseries(ndvi_df, save_path)
+            plot_url = url_for('static', filename=plot_filename)
+
+            analysis_html = generate_ndvi_analysis(ndvi_df)
+            if analysis_html is None:
+                analysis_html = "<p>Error: Unable to generate NDVI analysis.</p>"
+            analysis = Markup(analysis_html)
+
+            return jsonify({'response': analysis, 'plot_url': plot_url})
+        else:
+            return jsonify({'response': "I'm sorry, I didn't understand that. Try asking about analyzing the first curve."})
+    except Exception as e:
+        logging.error(f"Error in chat_ndvi: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 
 
