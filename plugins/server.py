@@ -621,4 +621,199 @@ def classify_ndvi_curve_function(x, y_smooth, coordinates=None):
         'warning': 'Negative NDVI values present' if (y_smooth < 0).any() else None
     }
 
+@app.route('/show_map', methods=['GET'])
+def show_map():
+    coordinates_input = request.args.get('coordinates')
+    if not coordinates_input:
+        return jsonify({'error': 'No coordinates provided'}), 400
 
+    try:
+        first_coord = coordinates_input.split(';')[0].strip()
+        lat, lon = map(float, first_coord.split(','))
+        coordinates = (lat, lon)
+
+        image_url = get_satellite_image([lon, lat], '2020-04-01', '2020-04-15')
+        ndvi_df = get_closest_ndvi_data(coordinates, MASTER_DF)
+
+        if not ndvi_df.empty:
+            x = ndvi_df['date'].astype(int) / 10**9
+            y_smooth = ndvi_df['NDVI'].values
+            classification_result = classify_ndvi_curve_function(x, y_smooth, coordinates)
+        else:
+            classification_result = {
+                'classification': 'No Data',
+                'confidence': 0.0,
+                'warning': f'No data found for {coordinates}'
+            }
+
+        categorical_raster = CategoricalRaster(
+            id="A2",
+            time_range=(
+                datetime.fromisoformat("2022-01-01").astimezone(timezone.utc),
+                datetime.fromisoformat("2022-12-31").astimezone(timezone.utc)
+            ),
+            geometry=box(-127.8459, 24.3321, -67.0096, 49.3253).__geo_interface__,
+            assets=[{"path_or_url": "/workspace/devkit23/plugins/plugin2/modules/2020_30m_cdls.tif"}],
+            bands=[1],
+            categories=CATEGORIZATION_CODE_TO_LAND_COVER
+        )
+
+        polygon = Polygon([(lon, lat), (lon+0.001, lat), (lon+0.001, lat+0.001), (lon, lat+0.001)])
+        crops_finder = plugin2.CropsInAreaFinder(categorical_raster)
+        crop_percentages, active_classes = crops_finder.get_crop_area_percentage(polygon)
+
+        return render_template('crop_results.html',
+                               coordinates=coordinates,
+                               crop_percentages=crop_percentages,
+                               active_classes=active_classes,
+                               image_url=image_url,
+                               classification_result=classification_result)
+    except Exception as e:
+        logging.error(f"Error processing coordinates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def check_wildfire_proximity(latitude, longitude, radius_km=10):
+    """
+    Check if any wildfires occurred within radius_km of given location.
+    """
+    for index, row in WILDFIRE_DATA.iterrows():
+        wildfire_location = (row['latitude'], row['longitude'])
+        user_location = (latitude, longitude)
+        distance_km = geodesic(wildfire_location, user_location).kilometers
+        if distance_km <= radius_km:
+            return True
+    return False
+
+@app.route('/tools/check_wildfire_proximity', methods=['POST'])
+def check_wildfire_proximity_endpoint():
+    data = request.get_json()
+    coordinates = data.get('coordinates')
+    radius_km = data.get('radius_km', 10)
+    if not coordinates or len(coordinates) != 2:
+        return jsonify({"error": "Invalid coordinates provided"}), 400
+    try:
+        latitude = float(coordinates[0])
+        longitude = float(coordinates[1])
+        wildfire_detected = check_wildfire_proximity(latitude, longitude, radius_km)
+        return jsonify({
+            "coordinates": coordinates,
+            "radius_km": radius_km,
+            "wildfire_detected": wildfire_detected
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/submit_coordinates', methods=['POST'])
+def submit_coordinates():
+    data = request.get_json()
+    coordinates = data.get('coordinates')
+    endpoint = request.args.get('endpoint')
+    if not coordinates:
+        return jsonify({'error': 'No coordinates provided'}), 400
+    try:
+        coordinates_input = ';'.join([f"{lat},{lon}" for lat, lon in coordinates])
+        return jsonify({'message': 'Success', 'redirect_url': url_for(endpoint, coordinates=coordinates_input)})
+    except Exception as e:
+        logging.error(f"Error processing coordinates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/further_investigation', methods=['GET', 'POST'])
+def further_investigation():
+    cdl_data = None
+    error = None
+    if request.method == 'POST':
+        try:
+            coordinates_input = request.form['coordinates']
+            coordinates = [tuple(map(float, coord.strip().split(','))) for coord in coordinates_input.split(';') if coord.strip()]
+            cdl_data = process_coordinates(coordinates)
+        except Exception as e:
+            logging.error(f"Error processing coordinates: {e}")
+            error = str(e)
+    return render_template('further_investigation.html', cdl_data=cdl_data, error=error)
+
+@app.route('/ndvi_analysis_insights', methods=['GET'])
+def ndvi_analysis_insights():
+    coordinates_input = request.args.get('coordinates')
+    if not coordinates_input:
+        return jsonify({"error": "No coordinates provided"}), 400
+
+    try:
+        cleaned_input = coordinates_input.replace('\r', '').replace('\n', '').replace(' ', '').split(';')
+        coordinates = []
+        for c in cleaned_input:
+            if c:
+                lat_lon = c.split(',')
+                if len(lat_lon) != 2:
+                    raise ValueError("Invalid coordinate format")
+                lat, lon = map(float, lat_lon)
+                coordinates.append((lat, lon))
+
+        results = []
+        for coord in coordinates:
+            ndvi_df = get_closest_ndvi_data(coord, MASTER_DF)
+            if ndvi_df.empty:
+                continue
+            results.append({'coordinates': coord, 'ndvi_data': ndvi_df.to_dict(orient='records')})
+
+        if not results:
+            return jsonify({"error": "Data not found"}), 500
+
+        return render_template('ndvi_analysis.html', results=results)
+    except ValueError as ve:
+        return jsonify({"error": "Invalid coordinate format"}), 400
+    except Exception as e:
+        logging.error(f"Error processing NDVI analysis: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/tools/classify_ndvi_curve', methods=['POST'])
+def classify_ndvi_curve():
+    data = request.get_json()
+    if not data or 'coordinates' not in data or not data['coordinates'].strip():
+        return jsonify({'error': 'No valid coordinates provided'}), 400
+
+    if request.content_type != 'application/json':
+        return jsonify({'error': 'Content-Type must be application/json'}), 415
+
+    coordinates_str = data['coordinates'].strip()
+    coord_list = coordinates_str.split(';')
+
+    results = []
+    for coord in coord_list:
+        coord = coord.strip()
+        if not coord:
+            continue
+        parts = coord.split(',')
+        if len(parts) != 2:
+            results.append({
+                'classification': 'Error',
+                'confidence': 0.0,
+                'warning': f'Invalid coordinate format: {coord}'
+            })
+            continue
+
+        lat, lon = map(float, parts)
+        ndvi_df = get_closest_ndvi_data((lat, lon), MASTER_DF)
+        if ndvi_df.empty:
+            results.append({
+                'classification': 'No Data',
+                'confidence': 0.0,
+                'warning': f'No data found for {coord}'
+            })
+            continue
+
+        x = ndvi_df['date'].astype(int) / 10**9
+        y_smooth = ndvi_df['NDVI'].values
+        classification_result = classify_ndvi_curve_function(x, y_smooth, (lat, lon))
+        results.append(classification_result)
+
+    return jsonify(results)
+
+
+if __name__ == '__main__':
+    app.run(port=8001, debug=True)
