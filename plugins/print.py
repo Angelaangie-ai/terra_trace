@@ -41,7 +41,7 @@ points = [Point(lon, lat) for lat, lon in zip(latitudes, longitudes)]
 # Create a GeoDataFrame with these points
 gdf_points = gpd.GeoDataFrame(geometry=points)
 
-# Load the California shapefile (make sure to use the correct path)
+# Load the California shapefile
 shapefile_path = '/workspace/devkit23/plugins/plugin2/cb_2021_us_state_20m/cb_2021_us_state_20m.shp'
 try:
     california = gpd.read_file(shapefile_path)
